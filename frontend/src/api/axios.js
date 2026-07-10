@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Get base URL for backend API from env variables or default to localhost
-const BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5000/api');
+const BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://placemate-pb59.onrender.com/api' : 'http://localhost:5000/api');
 
 const api = axios.create({
   baseURL: BASE_URL,

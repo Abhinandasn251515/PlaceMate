@@ -20,7 +20,7 @@ const CommunityChat = () => {
   useEffect(() => {
     const socketUrl = import.meta.env.VITE_API_URL
       ? import.meta.env.VITE_API_URL.replace('/api', '')
-      : (import.meta.env.PROD ? window.location.origin : 'http://localhost:5000');
+      : (import.meta.env.PROD ? 'https://placemate-pb59.onrender.com' : 'http://localhost:5000');
 
     socketRef.current = io(socketUrl);
 
