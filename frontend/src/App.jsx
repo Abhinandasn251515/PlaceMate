@@ -12,12 +12,19 @@ import CodingPractice from './pages/CodingPractice';
 import AptitudeSection from './pages/AptitudeSection';
 import MockTest from './pages/MockTest';
 import ResumeBuilder from './pages/ResumeBuilder';
+import AIResumeAnalyzer from './pages/AIResumeAnalyzer';
+import AIMockInterview from './pages/AIMockInterview';
+import Achievements from './pages/Achievements';
+import StudyPlanner from './pages/StudyPlanner';
+import PlacementCalendar from './pages/PlacementCalendar';
 import CompanyPrep from './pages/CompanyPrep';
 import NotesLibrary from './pages/NotesLibrary';
 import Profile from './pages/Profile';
 import CommunityChat from './pages/CommunityChat';
 import ResourcesHub from './pages/ResourcesHub';
 import BuildTogether from './pages/BuildTogether';
+import JobBoard from './pages/JobBoard';
+import RecruiterDashboard from './pages/RecruiterDashboard';
 
 // Layouts
 import Navbar from './components/Navbar';
@@ -25,6 +32,7 @@ import Sidebar from './components/Sidebar';
 
 // Context
 import { AuthProvider, AuthContext } from './context/AuthContext';
+
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
   const { user } = React.useContext(AuthContext);
@@ -61,11 +69,18 @@ function App() {
             <Route path="/aptitude" element={<ProtectedRoute><AptitudeSection /></ProtectedRoute>} />
             <Route path="/mock-test" element={<ProtectedRoute><MockTest /></ProtectedRoute>} />
             <Route path="/resume-builder" element={<ProtectedRoute><ResumeBuilder /></ProtectedRoute>} />
+            <Route path="/resume-analyzer" element={<ProtectedRoute><AIResumeAnalyzer /></ProtectedRoute>} />
+            <Route path="/mock-interview" element={<ProtectedRoute><AIMockInterview /></ProtectedRoute>} />
+            <Route path="/achievements" element={<ProtectedRoute><Achievements /></ProtectedRoute>} />
+            <Route path="/planner" element={<ProtectedRoute><StudyPlanner /></ProtectedRoute>} />
+            <Route path="/calendar" element={<ProtectedRoute><PlacementCalendar /></ProtectedRoute>} />
             <Route path="/company-prep" element={<ProtectedRoute><CompanyPrep /></ProtectedRoute>} />
             <Route path="/notes" element={<ProtectedRoute><NotesLibrary /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/resources" element={<ProtectedRoute><ResourcesHub /></ProtectedRoute>} />
             <Route path="/build-together" element={<ProtectedRoute><BuildTogether /></ProtectedRoute>} />
+            <Route path="/jobs" element={<ProtectedRoute><JobBoard /></ProtectedRoute>} />
+            <Route path="/recruiter" element={<ProtectedRoute><RecruiterDashboard /></ProtectedRoute>} />
           </Routes>
       </Router>
     </AuthProvider>

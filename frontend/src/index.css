@@ -7,6 +7,15 @@
   --color-dark-bg: #0f172a;
   --color-dark-card: #1e293b;
   --color-dark-border: #334155;
+  
+  /* Custom intermediate color tokens used in the application layout */
+  --color-slate-250: #cbd5e1; /* Clear light slate gray for dark-mode text */
+  --color-slate-350: #94a3b8;
+  --color-slate-650: #475569;
+  --color-slate-750: #293548; /* Slate intermediate border / background */
+  --color-slate-805: #0f172a;
+  --color-slate-850: #090d16; /* Deep dark slate for headers */
+  --color-indigo-755: #4338ca;
 }
 
 @layer base {

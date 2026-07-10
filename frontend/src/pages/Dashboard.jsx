@@ -2,8 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { collection, onSnapshot, query, orderBy, limit, doc, updateDoc, addDoc, arrayUnion } from 'firebase/firestore';
-import { db } from '../firebase';
+import { getLeaderboard, getJobs, applyToJob } from '../api/backend';
 import { 
   Flame, 
   Code2, 
@@ -44,94 +43,94 @@ ChartJS.register(
   Filler
 );
 
+const MOCK_PROBLEMS = [
+  { id: 1, title: 'Two Sum', difficulty: 'Easy', category: 'Arrays', xpReward: 50 },
+  { id: 2, title: 'Reverse a Linked List', difficulty: 'Medium', category: 'Linked Lists', xpReward: 50 },
+  { id: 3, title: 'Longest Common Subsequence', difficulty: 'Hard', category: 'Dynamic Programming', xpReward: 50 },
+  { id: 4, title: 'Merge Intervals', difficulty: 'Medium', category: 'Arrays', xpReward: 50 },
+  { id: 5, title: 'Valid Parentheses', difficulty: 'Easy', category: 'Stacks', xpReward: 50 }
+];
+
+const MOCK_APTITUDE = [
+  { id: 1, question: 'A train 120m long passes a post in 12 seconds. Find the speed of the train.', category: 'Time & Distance' },
+  { id: 2, question: 'A and B can do a work in 10 days and 15 days respectively. How long will they take together?', category: 'Time & Work' },
+  { id: 3, question: 'What is the probability of getting a sum of 7 when rolling two dice?', category: 'Probability' }
+];
+
 const Dashboard = () => {
-  const { user } = useContext(AuthContext);
+  const { user, syncProfile } = useContext(AuthContext);
   const navigate = useNavigate();
   
-  const [activities, setActivities] = useState([]);
+  const [activities, setActivities] = useState([
+    { id: 1, type: 'interview', message: 'Abhinandan completed Google SDE-I Mock Interview! Score: 85% 🎤', time: '5m ago' },
+    { id: 2, type: 'coding', message: 'Rahul solved DFS Tree Traversals with optimal DP! 💻', time: '18m ago' },
+    { id: 3, type: 'drive', message: 'Razorpay Drive registration is open for SDE internship. 🚀', time: '1h ago' },
+    { id: 4, type: 'achievement', message: 'Sneha unlocked the Streak King badge! 🏆', time: '2h ago' }
+  ]);
   const [leaderboard, setLeaderboard] = useState([]);
   const [drives, setDrives] = useState([]);
   const [registering, setRegistering] = useState({});
   const [dailyCodeProblem, setDailyCodeProblem] = useState(null);
   const [dailyAptitude, setDailyAptitude] = useState(null);
 
-  // 1. Live Feed (Activities)
+  // 1. Fetch Leaderboard from Node Server
   useEffect(() => {
-    const q = query(collection(db, 'activities'), orderBy('timestamp', 'desc'), limit(6));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const newActivities = snapshot.docs.map(doc => {
-        const data = doc.data();
-        let timeStr = 'Just now';
-        if (data.timestamp) {
-          const diff = Date.now() - new Date(data.timestamp).getTime();
-          const mins = Math.floor(diff / 60000);
-          if (mins > 0) {
-            timeStr = mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`;
-          }
-        }
-        return {
-          id: doc.id,
-          type: data.type || 'info',
-          message: data.message || '',
-          time: timeStr
-        };
-      });
-      setActivities(newActivities);
-    });
-    return () => unsubscribe();
+    const fetchLeaderboard = async () => {
+      try {
+        const list = await getLeaderboard();
+        const mappedList = list.map(item => ({
+          id: item._id,
+          name: item.name,
+          overall: item.progress?.overall || 0,
+          solved: item.solvedProblems || 0,
+          streak: item.dailyStreak || 0
+        }));
+        setLeaderboard(mappedList);
+      } catch (err) {
+        console.error('Failed to load leaderboard:', err.message);
+      }
+    };
+    fetchLeaderboard();
   }, []);
 
-  // 2. Real-Time Progression Board (Leaderboard of all registered users)
+  // 2. Fetch Placement Drives (Jobs) from Node Server
   useEffect(() => {
-    const q = query(collection(db, 'users'), orderBy('progress.overall', 'desc'), limit(5));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const runners = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          name: data.name || 'Anonymous Student',
-          overall: data.progress?.overall || 0,
-          solved: data.solvedProblems || 0,
-          streak: data.dailyStreak || 0
-        };
-      });
-      setLeaderboard(runners);
-    });
-    return () => unsubscribe();
+    const fetchDrives = async () => {
+      try {
+        const jobs = await getJobs();
+        // Spread drive dates based on creation time for calendar preview mapping
+        const mappedDrives = jobs.map((job, idx) => {
+          const baseDate = new Date(job.createdAt || Date.now());
+          baseDate.setDate(baseDate.getDate() + (idx * 2) + 1);
+          return {
+            id: job._id,
+            company: job.company,
+            title: job.title,
+            ctc: job.ctc,
+            location: job.location,
+            date: baseDate.toISOString().split('T')[0]
+          };
+        });
+        setDrives(mappedDrives);
+      } catch (err) {
+        console.error('Failed to load placement drives:', err.message);
+      }
+    };
+    fetchDrives();
   }, []);
 
-  // 3. Real-Time Placement Drives Fetch
+  // 3. Set Daily Coding Problem statically
   useEffect(() => {
-    const q = query(collection(db, 'placementDrives'), orderBy('date', 'asc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const drivesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setDrives(drivesList);
-    });
-    return () => unsubscribe();
+    const day = new Date().getDate();
+    const problem = MOCK_PROBLEMS[day % MOCK_PROBLEMS.length];
+    setDailyCodeProblem(problem);
   }, []);
 
-  // 4. Fetch coding problems & select daily problem
+  // 4. Set Daily Aptitude Booster statically
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'codingProblems'), (snap) => {
-      if (snap.empty) return;
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const day = new Date().getDate();
-      const problem = list[day % list.length];
-      setDailyCodeProblem(problem);
-    });
-    return () => unsub();
-  }, []);
-
-  // 5. Fetch aptitude questions & select daily booster
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'aptitudeQuestions'), (snap) => {
-      if (snap.empty) return;
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const day = new Date().getDate();
-      const question = list[(day * 7) % list.length];
-      setDailyAptitude(question);
-    });
-    return () => unsub();
+    const day = new Date().getDate();
+    const question = MOCK_APTITUDE[(day * 7) % MOCK_APTITUDE.length];
+    setDailyAptitude(question);
   }, []);
 
   const progressData = {
@@ -142,32 +141,34 @@ const Dashboard = () => {
     overall: user?.progress?.overall || 0
   };
 
-  const handleRegisterDrive = async (company) => {
-    if (!user?.uid) {
+  const handleRegisterDrive = async (jobId, company) => {
+    if (!user) {
       toast.error('You must be logged in to register.');
       return;
     }
     setRegistering(prev => ({ ...prev, [company]: true }));
     try {
-      const userRef = doc(db, 'users', user.uid);
-      const currentDrives = user.registeredDrives || [];
-      if (currentDrives.includes(company)) return;
+      // Apply using the profile's current resume
+      await applyToJob(jobId, null);
+      
+      // Update activity logs locally
+      setActivities(prev => [
+        {
+          id: Date.now(),
+          type: 'drive',
+          message: `${user.name || 'A student'} registered for ${company} recruitment drive! 🚀`,
+          time: 'Just now'
+        },
+        ...prev
+      ]);
 
-      await updateDoc(userRef, {
-        registeredDrives: arrayUnion(company)
-      });
-
-      // Post activity live event
-      await addDoc(collection(db, 'activities'), {
-        type: 'drive',
-        message: `${user.name || 'A student'} registered for ${company} recruitment drive! 🚀`,
-        timestamp: new Date().toISOString()
-      });
-
-      toast.success(`Successfully registered for ${company} drive! Check email for details.`);
-    } catch (e) {
-      console.error(e);
-      toast.error('Failed to register. Please try again.');
+      toast.success(`Successfully registered for the ${company} recruitment drive!`);
+      
+      // Refresh user profile state to show updated registered drives
+      await syncProfile();
+    } catch (err) {
+      const errMsg = err.response?.data?.message || 'Failed to register. Please upload a resume first.';
+      toast.error(errMsg);
     } finally {
       setRegistering(prev => ({ ...prev, [company]: false }));
     }
@@ -222,14 +223,26 @@ const Dashboard = () => {
   return (
     <div className="space-y-8">
       {/* Top Welcome Header */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-2 tracking-tight">
             Welcome back, <span className="text-indigo-600 dark:text-indigo-400">{user?.name?.split(' ')[0] || 'Student'}</span>! 👋
           </h1>
           <p className="text-slate-500 dark:text-slate-400 font-medium">Your customized placement preparation control center.</p>
         </div>
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4 flex-wrap">
+          {/* Level & XP Card */}
+          <div className="flex items-center gap-3 bg-white dark:bg-slate-800 px-5 py-3 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60">
+             <div className="bg-indigo-50 dark:bg-indigo-950/40 p-2.5 rounded-xl shrink-0 text-indigo-500">
+               <Award size={24} />
+             </div>
+             <div>
+               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Level {user?.level || 1}</p>
+               <p className="text-sm font-black text-slate-800 dark:text-white">{user?.xp || 0} XP Total</p>
+             </div>
+          </div>
+
+          {/* Daily Streak Card */}
           <div className="flex items-center gap-3 bg-white dark:bg-slate-800 px-5 py-3 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60">
              <div className="bg-orange-50 dark:bg-orange-950/40 p-2.5 rounded-xl shrink-0">
                <Flame className="text-orange-500 animate-pulse" size={24} />

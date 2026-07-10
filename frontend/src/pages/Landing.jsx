@@ -18,7 +18,9 @@ const Landing = () => {
             <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
               <GraduationCap className="text-white h-6 w-6" />
             </div>
-            <span className="text-xl font-black tracking-tight text-white">PlaceMate</span>
+            <span className="text-xl font-black tracking-tight text-white flex items-center gap-1.5">
+              PlaceMate <span className="text-[10px] font-black tracking-widest text-indigo-400 bg-indigo-950 border border-indigo-900 px-1.5 py-0.5 rounded-md uppercase">AI</span>
+            </span>
           </div>
           <div className="flex items-center gap-4">
             <Link to="/login" className="px-4 py-2 text-xs font-bold text-slate-300 hover:text-white transition-colors">
@@ -44,18 +46,18 @@ const Landing = () => {
         >
           {/* Badge */}
           <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-950/60 border border-indigo-500/30 text-indigo-300 rounded-full text-[10px] font-black uppercase tracking-widest mx-auto shadow-sm">
-            <Sparkles size={10} className="text-indigo-400" /> Real-time placement prep platform
+            <Sparkles size={10} className="text-indigo-400" /> Your Complete AI-Powered Placement Preparation Platform
           </div>
 
           <h1 className="text-5xl md:text-7xl font-black tracking-tight text-white leading-none">
             Launch Your Tech Career <br/>
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
-              With PlaceMate
+              With PlaceMate AI
             </span>
           </h1>
 
           <p className="text-base md:text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed font-medium">
-            Master your coding interviews, practice timed aptitude assessments, build ATS-friendly resumes, and collaborate in real-time. Fully free and open-source.
+            Optimize your placement prep path with AI-driven Resume Analysis, Conversational Mock Interviews, Monaco Code Compilers, Gamified Streaks, Achievements, and Live Leaderboards.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">

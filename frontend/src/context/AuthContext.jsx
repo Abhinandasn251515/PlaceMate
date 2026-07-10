@@ -1,13 +1,11 @@
 import React, { createContext, useState, useEffect } from 'react';
+import { toast } from 'react-toastify';
 import { 
-  onAuthStateChanged, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signInWithPopup, 
-  signOut 
-} from 'firebase/auth';
-import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
-import { auth, db, googleProvider } from '../firebase';
+  loginUser, 
+  registerUser, 
+  getUserProfile, 
+  updateUserProgress 
+} from '../api/backend';
 
 export const AuthContext = createContext();
 
@@ -15,149 +13,247 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Helper to calculate Level based on XP
+  const calculateLevel = (xp) => {
+    return Math.floor(Math.sqrt(xp / 100)) + 1;
+  };
+
+  // Load user profile on startup if JWT token exists
   useEffect(() => {
-    let userUnsub = null;
-
-    const authUnsub = onAuthStateChanged(auth, (firebaseUser) => {
-      // Clean up previous user listener
-      if (userUnsub) { userUnsub(); userUnsub = null; }
-
-      if (firebaseUser) {
-        // ✅ REAL-TIME: Listen to user doc changes in Firestore
-        const userRef = doc(db, 'users', firebaseUser.uid);
-        userUnsub = onSnapshot(userRef, (snap) => {
-          if (snap.exists()) {
-            setUser({ uid: firebaseUser.uid, ...snap.data() });
-          } else {
-            // First-time user (e.g. Google login before profile created)
-            setUser({
-              uid: firebaseUser.uid,
-              name: firebaseUser.displayName || 'Student',
-              email: firebaseUser.email,
-              role: 'student',
-              dailyStreak: 0,
-              solvedProblems: 0,
-              quizzesCompleted: 0,
-              mockTestsTaken: 0,
-              progress: { coding: 0, aptitude: 0, mockTest: 0, resume: 0, overall: 0 }
-            });
-          }
-          setLoading(false);
-        });
+    const initAuth = async () => {
+      const token = localStorage.getItem('placemate_jwt_token');
+      if (token) {
+        try {
+          const profile = await getUserProfile();
+          setUser(profile);
+        } catch (err) {
+          console.error('Failed to load user profile:', err.message);
+          localStorage.removeItem('placemate_jwt_token');
+          setUser(null);
+        }
       } else {
         setUser(null);
-        setLoading(false);
       }
-    });
-
-    return () => {
-      authUnsub();
-      if (userUnsub) userUnsub();
+      setLoading(false);
     };
+
+    initAuth();
   }, []);
 
   const login = async (email, password) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    setLoading(true);
+    try {
+      const data = await loginUser({ email, password });
+      localStorage.setItem('placemate_jwt_token', data.token);
+      
+      const profile = {
+        _id: data._id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        xp: data.xp,
+        level: data.level,
+        dailyStreak: data.dailyStreak,
+        progress: data.progress,
+        resumeUrl: data.resumeUrl,
+        registeredDrives: data.registeredDrives
+      };
+      
+      setUser(profile);
+      toast.success(`Welcome back, ${data.name}! 👋`);
+      
+      if (data.dailyStreak > 1) {
+        toast.success(`🔥 Streak active! ${data.dailyStreak} days strong!`);
+      }
+      return profile;
+    } catch (err) {
+      const errMsg = err.response?.data?.message || 'Login failed. Please verify credentials.';
+      toast.error(errMsg);
+      throw new Error(errMsg);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const register = async (name, email, password) => {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const firebaseUser = userCredential.user;
-    const userProfile = {
-      name,
-      email,
-      role: 'student',
-      dailyStreak: 1,
-      solvedProblems: 0,
-      quizzesCompleted: 0,
-      mockTestsTaken: 0,
-      progress: { coding: 0, aptitude: 0, mockTest: 0, resume: 0, overall: 0 },
-      createdAt: new Date().toISOString()
-    };
-    await setDoc(doc(db, 'users', firebaseUser.uid), userProfile);
+  const register = async (name, email, password, role = 'student') => {
+    setLoading(true);
+    try {
+      const data = await registerUser({ name, email, password, role });
+      localStorage.setItem('placemate_jwt_token', data.token);
+      
+      const profile = {
+        _id: data._id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        xp: data.xp,
+        level: data.level,
+        dailyStreak: data.dailyStreak,
+        progress: data.progress,
+        resumeUrl: '',
+        registeredDrives: []
+      };
+      
+      setUser(profile);
+      toast.success('Registration successful! Welcome to PlaceMate AI! 🎉');
+      return profile;
+    } catch (err) {
+      const errMsg = err.response?.data?.message || 'Registration failed. Try again.';
+      toast.error(errMsg);
+      throw new Error(errMsg);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const googleLogin = async () => {
-    const result = await signInWithPopup(auth, googleProvider);
-    const firebaseUser = result.user;
-    const userRef = doc(db, 'users', firebaseUser.uid);
-
-    // Only create profile if it doesn't exist (checked by onSnapshot above)
-    // We use setDoc with merge:true to safely initialise without overwriting
-    await setDoc(userRef, {
-      name: firebaseUser.displayName || 'Google User',
-      email: firebaseUser.email,
-      role: 'student',
-      dailyStreak: 1,
-      solvedProblems: 0,
-      quizzesCompleted: 0,
-      mockTestsTaken: 0,
-      progress: { coding: 0, aptitude: 0, mockTest: 0, resume: 0, overall: 0 },
-      createdAt: new Date().toISOString()
-    }, { merge: true });
-  };
-
-  // ✅ Called after solving a coding problem
-  const updateCodingProgress = async () => {
-    if (!user?.uid) return;
-    const ref = doc(db, 'users', user.uid);
-    const solved = (user.solvedProblems || 0) + 1;
-    const newCoding = Math.min(100, Math.round((solved / 10) * 100));
-    const newOverall = Math.min(100, Math.round(
-      (newCoding + (user.progress?.aptitude || 0) + (user.progress?.mockTest || 0) + (user.progress?.resume || 0)) / 4
-    ));
-    await updateDoc(ref, {
-      solvedProblems: solved,
-      'progress.coding': newCoding,
-      'progress.overall': newOverall
-    });
-  };
-
-  // ✅ Called after completing an aptitude quiz
-  const updateAptitudeProgress = async (score, total) => {
-    if (!user?.uid) return;
-    const ref = doc(db, 'users', user.uid);
-    const completed = (user.quizzesCompleted || 0) + 1;
-    const pct = Math.round((score / total) * 100);
-    const current = user.progress?.aptitude || 0;
-    const newAptitude = Math.min(100, Math.round((current + pct) / 2));
-    const newOverall = Math.min(100, Math.round(
-      ((user.progress?.coding || 0) + newAptitude + (user.progress?.mockTest || 0) + (user.progress?.resume || 0)) / 4
-    ));
-    await updateDoc(ref, {
-      quizzesCompleted: completed,
-      'progress.aptitude': newAptitude,
-      'progress.overall': newOverall
-    });
-  };
-
-  // ✅ Called after submitting a mock test
-  const updateMockTestProgress = async (score, total) => {
-    if (!user?.uid) return;
-    const ref = doc(db, 'users', user.uid);
-    const taken = (user.mockTestsTaken || 0) + 1;
-    const pct = Math.round((score / total) * 100);
-    const current = user.progress?.mockTest || 0;
-    const newMock = Math.min(100, Math.round((current + pct) / 2));
-    const newOverall = Math.min(100, Math.round(
-      ((user.progress?.coding || 0) + (user.progress?.aptitude || 0) + newMock + (user.progress?.resume || 0)) / 4
-    ));
-    await updateDoc(ref, {
-      mockTestsTaken: taken,
-      'progress.mockTest': newMock,
-      'progress.overall': newOverall
-    });
-  };
-
-  const logout = async () => {
-    await signOut(auth);
+  const logout = () => {
+    localStorage.removeItem('placemate_jwt_token');
     setUser(null);
+    toast.info('Logged out successfully.');
+  };
+
+  const passwordReset = async (email) => {
+    toast.info('Password reset is coming soon. Please contact your administrator.');
+  };
+
+  const addXP = async (amount) => {
+    if (!user) return;
+    try {
+      const updated = await updateUserProgress({ xpToAdd: amount });
+      
+      setUser(prev => ({
+        ...prev,
+        xp: updated.xp,
+        level: updated.level,
+        progress: {
+          ...prev.progress,
+          ...updated.progress
+        }
+      }));
+
+      toast.success(`+${amount} XP Earned!`);
+      if (updated.level > user.level) {
+        toast.success(`🎉 LEVEL UP! You reached Level ${updated.level}!`);
+      }
+    } catch (err) {
+      console.error('Failed to add XP:', err.message);
+    }
+  };
+
+  // Called after solving a coding problem
+  const updateCodingProgress = async () => {
+    if (!user) return;
+    try {
+      const solved = (user.solvedProblems || 0) + 1;
+      const newCoding = Math.min(100, Math.round((solved / 10) * 100));
+      
+      const updated = await updateUserProgress({
+        xpToAdd: 50,
+        coding: newCoding,
+        resolvedProblem: true
+      });
+
+      setUser(prev => ({
+        ...prev,
+        xp: updated.xp,
+        level: updated.level,
+        solvedProblems: updated.solvedProblems,
+        progress: updated.progress
+      }));
+
+      toast.success(`+50 XP Earned!`);
+      if (updated.level > user.level) {
+        toast.success(`🎉 LEVEL UP! You reached Level ${updated.level}!`);
+      }
+    } catch (err) {
+      console.error('Failed to update coding progress:', err.message);
+    }
+  };
+
+  // Called after completing an aptitude quiz
+  const updateAptitudeProgress = async (score, total) => {
+    if (!user) return;
+    try {
+      const pct = Math.round((score / total) * 100);
+      const current = user.progress?.aptitude || 0;
+      const newAptitude = Math.min(100, Math.round((current + pct) / 2));
+
+      const updated = await updateUserProgress({
+        xpToAdd: 30,
+        aptitude: newAptitude,
+        quizScore: true
+      });
+
+      setUser(prev => ({
+        ...prev,
+        xp: updated.xp,
+        level: updated.level,
+        quizzesCompleted: updated.quizzesCompleted,
+        progress: updated.progress
+      }));
+
+      toast.success(`+30 XP Earned!`);
+      if (updated.level > user.level) {
+        toast.success(`🎉 LEVEL UP! You reached Level ${updated.level}!`);
+      }
+    } catch (err) {
+      console.error('Failed to update aptitude progress:', err.message);
+    }
+  };
+
+  // Called after submitting a mock test
+  const updateMockTestProgress = async (score, total) => {
+    if (!user) return;
+    try {
+      const pct = Math.round((score / total) * 100);
+      const current = user.progress?.mockTest || 0;
+      const newMock = Math.min(100, Math.round((current + pct) / 2));
+
+      const updated = await updateUserProgress({
+        xpToAdd: 100,
+        mockTest: newMock,
+        mockScore: true
+      });
+
+      setUser(prev => ({
+        ...prev,
+        xp: updated.xp,
+        level: updated.level,
+        mockTestsTaken: updated.mockTestsTaken,
+        progress: updated.progress
+      }));
+
+      toast.success(`+100 XP Earned!`);
+      if (updated.level > user.level) {
+        toast.success(`🎉 LEVEL UP! You reached Level ${updated.level}!`);
+      }
+    } catch (err) {
+      console.error('Failed to update mock test progress:', err.message);
+    }
+  };
+
+  const syncProfile = async () => {
+    try {
+      const profile = await getUserProfile();
+      setUser(profile);
+    } catch (err) {
+      console.error('Failed to sync profile:', err.message);
+    }
   };
 
   return (
     <AuthContext.Provider value={{ 
-      user, loading, login, register, googleLogin, logout,
-      updateCodingProgress, updateAptitudeProgress, updateMockTestProgress
+      user, 
+      loading, 
+      login, 
+      register, 
+      logout,
+      passwordReset, 
+      addXP,
+      syncProfile,
+      updateCodingProgress, 
+      updateAptitudeProgress, 
+      updateMockTestProgress
     }}>
       {!loading && children}
     </AuthContext.Provider>

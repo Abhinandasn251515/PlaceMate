@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { Send, Users, MessageSquare, Hash } from 'lucide-react';
-import { collection, addDoc, onSnapshot, query, orderBy, limit, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../firebase';
-import { toast } from 'react-toastify';
+import { Send, MessageSquare, Hash } from 'lucide-react';
+import { io } from 'socket.io-client';
+import { getMessagesByChannel } from '../api/backend';
 
 const CHANNELS = ['#general', '#coding-talk', '#interview-prep'];
 
@@ -14,37 +13,85 @@ const CommunityChat = () => {
   const [activeChannel, setActiveChannel] = useState('#general');
   const [typingUsers, setTypingUsers] = useState([]);
   const messagesEndRef = useRef(null);
+  const socketRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
-  // 1. Fetch messages in real-time
+  // Initialize socket connection
   useEffect(() => {
-    const q = query(collection(db, 'messages'), orderBy('timestamp', 'asc'), limit(150));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setMessages(msgs);
-    });
-    return () => unsubscribe();
+    const socketUrl = import.meta.env.VITE_API_URL
+      ? import.meta.env.VITE_API_URL.replace('/api', '')
+      : (import.meta.env.PROD ? window.location.origin : 'http://localhost:5000');
+
+    socketRef.current = io(socketUrl);
+
+    // Cleanup on unmount
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
   }, []);
 
-  // 2. Fetch typing status in real-time
+  // Fetch history & subscribe to events when channel changes
   useEffect(() => {
-    const q = collection(db, 'typing');
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const activeTyping = [];
-      const now = Date.now();
-      snapshot.docs.forEach(d => {
-        const data = d.data();
-        // Don't show ourselves, and filter by current channel and within last 3 seconds
-        if (d.id !== user?.uid && data.channel === activeChannel && data.isTyping && (now - data.lastActive < 4000)) {
-          activeTyping.push(data.name);
+    if (!socketRef.current) return;
+
+    const socket = socketRef.current;
+
+    // Join channel
+    socket.emit('joinChannel', activeChannel);
+
+    // Clear state
+    setMessages([]);
+    setTypingUsers([]);
+
+    // Load channel history from MongoDB
+    const fetchHistory = async () => {
+      try {
+        const history = await getMessagesByChannel(activeChannel);
+        setMessages(history);
+      } catch (err) {
+        console.error('Failed to retrieve chat history:', err.message);
+      }
+    };
+
+    fetchHistory();
+
+    // Listen for incoming messages
+    socket.on('message', (msg) => {
+      if (msg.channel === activeChannel) {
+        setMessages((prev) => {
+          // Avoid duplicate messages
+          if (prev.some((m) => m._id === msg._id)) return prev;
+          return [...prev, msg];
+        });
+      }
+    });
+
+    // Listen for typing events
+    socket.on('typing', (data) => {
+      if (data.sender === user?.name) return; // Ignore ourselves
+
+      setTypingUsers((prev) => {
+        if (data.isTyping) {
+          if (!prev.includes(data.sender)) {
+            return [...prev, data.sender];
+          }
+          return prev;
+        } else {
+          return prev.filter((name) => name !== data.sender);
         }
       });
-      setTypingUsers(activeTyping);
     });
-    return () => unsubscribe();
-  }, [activeChannel, user?.uid]);
 
-  // Auto-scroll to bottom when new messages or typing events occur
+    // Cleanup events for this channel on change/unmount
+    return () => {
+      socket.off('message');
+      socket.off('typing');
+    };
+  }, [activeChannel, user?.name]);
+
+  // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, typingUsers]);
@@ -53,55 +100,50 @@ const CommunityChat = () => {
   const handleInputChange = (e) => {
     setInput(e.target.value);
 
-    if (!user?.uid) return;
+    if (!user || !socketRef.current) return;
 
-    // Set typing = true
-    const typingRef = doc(db, 'typing', user.uid);
-    setDoc(typingRef, {
-      name: user.name || 'Anonymous Student',
-      isTyping: true,
+    // Send typing = true event
+    socketRef.current.emit('typing', {
+      sender: user.name,
       channel: activeChannel,
-      lastActive: Date.now()
-    }, { merge: true }).catch(console.error);
+      isTyping: true
+    });
 
     // Clear previous timeout
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
-    // Set timeout to clear typing state after 2 seconds
+    // Auto-clear typing indicator after 2 seconds of inactivity
     typingTimeoutRef.current = setTimeout(() => {
-      setDoc(typingRef, { isTyping: false }, { merge: true }).catch(console.error);
+      if (socketRef.current) {
+        socketRef.current.emit('typing', {
+          sender: user.name,
+          channel: activeChannel,
+          isTyping: false
+        });
+      }
     }, 2000);
   };
 
-  const sendMessage = async (e) => {
+  const sendMessage = (e) => {
     e.preventDefault();
-    if (input.trim()) {
-      const messageData = {
-        sender: user?.name || 'Anonymous',
-        text: input,
+    if (input.trim() && socketRef.current && user) {
+      // Send message via WebSocket
+      socketRef.current.emit('sendMessage', {
+        sender: user.name,
+        text: input.trim(),
+        channel: activeChannel
+      });
+
+      // Clear typing indicator
+      socketRef.current.emit('typing', {
+        sender: user.name,
         channel: activeChannel,
-        timestamp: new Date().toISOString(),
-        timeFormatted: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      
-      // Stop typing status instantly on submit
-      if (user?.uid) {
-        const typingRef = doc(db, 'typing', user.uid);
-        setDoc(typingRef, { isTyping: false }, { merge: true }).catch(console.error);
-      }
-      
-      await addDoc(collection(db, 'messages'), messageData);
+        isTyping: false
+      });
+
       setInput('');
     }
   };
-
-  // Filter messages in-memory by channel
-  const filteredMessages = messages.filter(msg => {
-    if (activeChannel === '#general') {
-      return msg.channel === '#general' || !msg.channel;
-    }
-    return msg.channel === activeChannel;
-  });
 
   return (
     <div className="flex h-[calc(100vh-6.5rem)] bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60 overflow-hidden">
@@ -147,17 +189,17 @@ const CommunityChat = () => {
 
         {/* Chat Messages */}
         <div className="flex-1 p-6 overflow-y-auto space-y-4">
-          {filteredMessages.length === 0 ? (
+          {messages.length === 0 ? (
              <div className="flex flex-col items-center justify-center h-full text-slate-400">
                 <MessageSquare size={48} className="mb-4 opacity-30 text-indigo-500" />
                 <p className="text-sm font-semibold">Welcome to {activeChannel}!</p>
                 <p className="text-xs mt-1 text-slate-400">Be the first to start the conversation.</p>
              </div>
           ) : (
-            filteredMessages.map((msg) => {
+            messages.map((msg, index) => {
               const isMe = msg.sender === user?.name;
               return (
-                <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                <div key={msg._id || index} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                   <span className="text-[10px] text-slate-400 mb-1 ml-1">{msg.sender}</span>
                   <div className={`px-4 py-2.5 rounded-2xl max-w-[70%] shadow-sm text-sm ${
                     isMe 

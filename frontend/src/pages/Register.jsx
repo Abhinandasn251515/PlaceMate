@@ -8,14 +8,14 @@ import { motion } from 'framer-motion';
 const Register = () => {
   const { register, googleLogin } = useContext(AuthContext);
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'student' });
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await register(formData.name, formData.email, formData.password);
+      await register(formData.name, formData.email, formData.password, formData.role);
       toast.success('Registration successful!');
       navigate('/dashboard');
     } catch (err) {
@@ -89,6 +89,17 @@ const Register = () => {
                 className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all dark:text-white font-medium placeholder:font-normal"
                 placeholder="Full Name"
               />
+            </motion.div>
+
+            <motion.div whileFocus={{ scale: 1.02 }} className="relative group">
+              <select 
+                value={formData.role}
+                onChange={(e) => setFormData({...formData, role: e.target.value})}
+                className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all dark:text-white font-medium cursor-pointer"
+              >
+                <option value="student">Apply as a Student / Candidate</option>
+                <option value="recruiter">Join as a Corporate Recruiter</option>
+              </select>
             </motion.div>
             
             <motion.div whileFocus={{ scale: 1.02 }} className="relative group">
