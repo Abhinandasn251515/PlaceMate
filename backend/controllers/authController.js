@@ -197,3 +197,57 @@ export const getLeaderboard = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// @desc    Authenticate user with Google ID Token from Firebase
+// @route   POST /api/auth/google
+// @access  Public
+export const googleLogin = async (req, res) => {
+  const { idToken } = req.body;
+
+  if (!idToken) {
+    return res.status(400).json({ message: 'Google ID Token is required.' });
+  }
+
+  try {
+    // Verify token using Google OAuth2 TokenInfo API
+    const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+    const tokenInfo = await response.json();
+
+    if (tokenInfo.error_description) {
+      return res.status(401).json({ message: 'Invalid Google ID Token: ' + tokenInfo.error_description });
+    }
+
+    const { email, name } = tokenInfo;
+
+    // Check if user already exists
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      // Create a new candidate profile if first time logging in
+      user = await User.create({
+        name: name || 'Google User',
+        email,
+        password: Math.random().toString(36).slice(-8), // random dummy password
+        role: 'student'
+      });
+    }
+
+    // Generate JWT token
+    const token = generateToken(user._id);
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      xp: user.xp,
+      level: user.level,
+      dailyStreak: user.dailyStreak,
+      progress: user.progress,
+      token
+    });
+  } catch (err) {
+    console.error('Google Auth Error:', err.message);
+    res.status(500).json({ message: `Google Sign-in failed: ${err.message}` });
+  }
+};

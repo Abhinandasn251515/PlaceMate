@@ -1,10 +1,13 @@
 import React, { createContext, useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
+import { signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider } from '../firebase';
 import { 
   loginUser, 
   registerUser, 
   getUserProfile, 
-  updateUserProgress 
+  updateUserProgress,
+  googleLogin as googleLoginApi
 } from '../api/backend';
 
 export const AuthContext = createContext();
@@ -99,6 +102,40 @@ export const AuthProvider = ({ children }) => {
       return profile;
     } catch (err) {
       const errMsg = err.response?.data?.message || 'Registration failed. Try again.';
+      toast.error(errMsg);
+      throw new Error(errMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const googleLogin = async () => {
+    setLoading(true);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const idToken = await result.user.getIdToken();
+      
+      const data = await googleLoginApi(idToken);
+      localStorage.setItem('placemate_jwt_token', data.token);
+
+      const profile = {
+        _id: data._id,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+        xp: data.xp,
+        level: data.level,
+        dailyStreak: data.dailyStreak,
+        progress: data.progress,
+        resumeUrl: data.resumeUrl || '',
+        registeredDrives: data.registeredDrives || []
+      };
+
+      setUser(profile);
+      toast.success(`Welcome back, ${data.name}! 👋`);
+      return profile;
+    } catch (err) {
+      const errMsg = err.response?.data?.message || err.message || 'Google Login failed.';
       toast.error(errMsg);
       throw new Error(errMsg);
     } finally {
@@ -247,6 +284,7 @@ export const AuthProvider = ({ children }) => {
       loading, 
       login, 
       register, 
+      googleLogin,
       logout,
       passwordReset, 
       addXP,

@@ -21,6 +21,11 @@ export const updateUserProgress = async (progressData) => {
   return response.data;
 };
 
+export const googleLogin = async (idToken) => {
+  const response = await api.post('/auth/google', { idToken });
+  return response.data;
+};
+
 export const getLeaderboard = async () => {
   const response = await api.get('/auth/leaderboard');
   return response.data;
