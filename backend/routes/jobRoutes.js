@@ -10,7 +10,7 @@ import {
   getRecruiterJobs
 } from '../controllers/jobController.js';
 import { protect, recruiter } from '../middleware/authMiddleware.js';
-import { upload } from '../middleware/uploadMiddleware.js';
+import { upload, verifyFileSignature } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
@@ -30,7 +30,7 @@ router.route('/:id')
   .get(protect, getJobById);
 
 // Application actions
-router.post('/:id/apply', protect, upload.single('resume'), applyToJob);
+router.post('/:id/apply', protect, upload.single('resume'), verifyFileSignature, applyToJob);
 router.get('/:id/applicants', protect, recruiter, getJobApplicants);
 router.put('/applications/:id', protect, recruiter, updateApplicationStatus);
 

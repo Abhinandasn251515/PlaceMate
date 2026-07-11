@@ -140,8 +140,9 @@ export const AuthProvider = ({ children }) => {
       toast.success(`Welcome back, ${data.name}! 👋`);
       return profile;
     } catch (err) {
+      console.error('Google Login Error:', err);
       const errMsg = err.response?.data?.message || err.message || 'Google Login failed.';
-      toast.error(errMsg);
+      toast.error(`${errMsg} | Stack: ${err.stack || 'No Stack'}`);
       throw new Error(errMsg);
     } finally {
       setLoading(false);
