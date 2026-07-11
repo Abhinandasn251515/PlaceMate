@@ -1,6 +1,6 @@
-# 🎓 PlaceMate - Real-Time Placement Preparation Portal
+# 🎓 PlaceMate AI - Complete MERN Stack Placement Preparation Platform
 
-PlaceMate is a comprehensive, production-ready, **100% serverless placement preparation portal** designed to help students master coding, aptitude quizzes, resume construction, and interview prep. It features real-time synchronization, custom Monaco-based code compilation, interactive assessments, and live global progression tracking.
+PlaceMate AI is a comprehensive **MERN Stack (MongoDB, Express, React, Node.js)** placement preparation portal designed to help students prepare for technical SDE interviews. It features secure server-side Gemini AI integration, real-time Socket.io chat chambers, an interactive SDE Job Board, recruiter applicant tracking (ATS), timed aptitude assessments, and Monaco-based coding practice.
 
 🚀 **Live Production Link:** [https://placemate-d4bd0.web.app](https://placemate-d4bd0.web.app)
 
@@ -8,12 +8,14 @@ PlaceMate is a comprehensive, production-ready, **100% serverless placement prep
 
 ## 💻 Tech Stack & Architecture
 
-- **Frontend:** React 18, Vite, TailwindCSS v4, Framer Motion (for fluid micro-interactions and glassmorphism)
-- **Database & Sync:** Google Firebase Firestore (NoSQL realtime database)
-- **Authentication:** Firebase Auth (Email/Password & Google Sign-In)
-- **Hosting:** Firebase Hosting (CDN optimized)
-- **Compilers & Editors:** Monaco Editor integration (VS Code engine in-browser)
-- **PDF Engines:** `html2canvas` + `jsPDF` for client-side document compilation
+- **Frontend:** React 19, Vite, TailwindCSS v4, Framer Motion (for premium Glassmorphism UI)
+- **Backend API:** Node.js, Express.js, Helmet security, Rate-limiting middleware
+- **Real-Time WebSockets:** Socket.io client-server persistent gateways
+- **Database & ODM:** MongoDB (Atlas Cloud) & Mongoose schemas
+- **AI Integration:** Secure server-side Google Gemini Flash API calls (fully hiding credentials)
+- **File Storage:** Cloudinary integration for secure candidate resume hosting
+- **Authentication:** Stateful JWT token sessions + secure Google OAuth verification
+- **Hosting:** Firebase Hosting (static client CDN) & Render (live backend service API)
 
 ---
 
