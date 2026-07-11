@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 import { 
   loginUser, 
@@ -113,7 +113,12 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      const idToken = await result.user.getIdToken();
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const idToken = credential?.idToken;
+      
+      if (!idToken) {
+        throw new Error('Google OAuth credentials could not be retrieved.');
+      }
       
       const data = await googleLoginApi(idToken);
       localStorage.setItem('placemate_jwt_token', data.token);
