@@ -2,6 +2,7 @@ import React, { useState, useContext, useEffect, useRef } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { generateQuestions as generateInterviewQuestions, evaluateInterview as evaluateInterviewAnswer } from '../api/backend';
 import { motion, AnimatePresence } from 'framer-motion';
+import { io } from 'socket.io-client';
 import { 
   Mic, 
   MicOff, 
@@ -34,7 +35,24 @@ const ROLES = [
 const CATEGORIES = ['Technical', 'Behavioral', 'System Design'];
 
 const AIMockInterview = () => {
-  const { updateMockTestProgress } = useContext(AuthContext);
+  const { user, updateMockTestProgress } = useContext(AuthContext);
+  
+  const socketRef = useRef(null);
+
+  // Initialize Socket.io client connection
+  useEffect(() => {
+    const socketUrl = import.meta.env.VITE_API_URL
+      ? import.meta.env.VITE_API_URL.replace('/api', '')
+      : (import.meta.env.PROD ? 'https://placemate-pb59.onrender.com' : 'http://localhost:5000');
+
+    socketRef.current = io(socketUrl);
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  }, []);
   
   // Selection States
   const [role, setRole] = useState(ROLES[0]);
@@ -173,6 +191,14 @@ const AIMockInterview = () => {
       // Award XP & save mock test stats to database
       updateMockTestProgress(avg, 100);
       toast.success('🎉 Mock Interview Completed! +100 XP awarded!');
+      
+      // Broadcast mock interview activity to all users in real-time!
+      if (socketRef.current && user) {
+        socketRef.current.emit('newActivity', {
+          type: 'interview',
+          message: `${user.name || 'A student'} completed the ${role} Mock Interview with an average score of ${avg}%! 🎤`
+        });
+      }
     }
   };
 

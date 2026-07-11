@@ -116,6 +116,16 @@ io.on('connection', (socket) => {
     socket.to(channel).emit('typing', { sender, isTyping });
   });
 
+  // Global Real-Time Activity Ticker
+  socket.on('newActivity', (activity) => {
+    io.emit('activityBroadcast', {
+      id: Date.now(),
+      type: activity.type || 'info',
+      message: activity.message,
+      time: 'Just now'
+    });
+  });
+
   socket.on('disconnect', () => {
     console.log(`🔌 Socket Disconnected: ${socket.id}`);
   });

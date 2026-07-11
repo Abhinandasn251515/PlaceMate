@@ -1,8 +1,9 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, useRef } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { getLeaderboard, getJobs, applyToJob } from '../api/backend';
+import { io } from 'socket.io-client';
 import { 
   Flame, 
   Code2, 
@@ -72,6 +73,27 @@ const Dashboard = () => {
   const [registering, setRegistering] = useState({});
   const [dailyCodeProblem, setDailyCodeProblem] = useState(null);
   const [dailyAptitude, setDailyAptitude] = useState(null);
+
+  const socketRef = useRef(null);
+
+  // Real-time global activity WebSocket listener
+  useEffect(() => {
+    const socketUrl = import.meta.env.VITE_API_URL
+      ? import.meta.env.VITE_API_URL.replace('/api', '')
+      : (import.meta.env.PROD ? 'https://placemate-pb59.onrender.com' : 'http://localhost:5000');
+
+    socketRef.current = io(socketUrl);
+
+    socketRef.current.on('activityBroadcast', (newActivity) => {
+      setActivities(prev => [newActivity, ...prev.slice(0, 5)]);
+    });
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  }, []);
 
   // 1. Fetch Leaderboard from Node Server
   useEffect(() => {
@@ -151,16 +173,13 @@ const Dashboard = () => {
       // Apply using the profile's current resume
       await applyToJob(jobId, null);
       
-      // Update activity logs locally
-      setActivities(prev => [
-        {
-          id: Date.now(),
+      // Broadcast activity to all users in real-time via WebSockets!
+      if (socketRef.current) {
+        socketRef.current.emit('newActivity', {
           type: 'drive',
-          message: `${user.name || 'A student'} registered for ${company} recruitment drive! 🚀`,
-          time: 'Just now'
-        },
-        ...prev
-      ]);
+          message: `${user.name || 'A student'} registered for ${company} recruitment drive! 🚀`
+        });
+      }
 
       toast.success(`Successfully registered for the ${company} recruitment drive!`);
       
