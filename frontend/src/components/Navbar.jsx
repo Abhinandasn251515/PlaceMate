@@ -83,8 +83,9 @@ const Navbar = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
   };
 
-  const navItems = [
+  const studentItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'SDE Job Board', path: '/jobs', icon: Briefcase },
     { name: 'AI Resume Analyzer', path: '/resume-analyzer', icon: Sparkles },
     { name: 'AI Mock Interview', path: '/mock-interview', icon: Mic },
     { name: 'Achievements', path: '/achievements', icon: Award },
@@ -99,6 +100,15 @@ const Navbar = () => {
     { name: 'Online Resources', path: '/resources', icon: Globe },
     { name: 'Build Together', path: '/build-together', icon: Users },
   ];
+
+  const recruiterItems = [
+    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'Recruiter Admin', path: '/recruiter', icon: Building2 },
+    { name: 'Online Resources', path: '/resources', icon: Globe },
+    { name: 'Build Together', path: '/build-together', icon: Users },
+  ];
+
+  const navItems = user?.role === 'recruiter' ? recruiterItems : studentItems;
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'users'), (snap) => {
